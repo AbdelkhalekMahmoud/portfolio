@@ -10,37 +10,34 @@ const ITEMS = [
   { id: "contact", label: "Contact" },
 ];
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const onChange = () => setReduced(mq.matches);
-    onChange();
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-  return reduced;
-}
-
 function getInitialTheme() {
   const saved = localStorage.getItem("theme");
   if (saved === "dark") return true;
   if (saved === "light") return false;
-  return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 const NavBar = () => {
-  const prefersReducedMotion = usePrefersReducedMotion();
+  const headerRef = useRef(null);
+  const trackRef = useRef(null);
+  const linkRefs = useRef(new Map());
 
-  const [activeId, setActiveId] = useState(ITEMS[0].id);
+  const [activeId, setActiveId] = useState("about");
+
   const [dark, setDark] = useState(() => {
     const hasClass = document.documentElement.classList.contains("dark");
     return hasClass || getInitialTheme();
   });
 
-  const linkRefs = useRef(new Map());
-  const trackRef = useRef(null);
-  const [indicator, setIndicator] = useState({ left: 0, width: 0, ready: false });
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const [indicator, setIndicator] = useState({
+    left: 0,
+    width: 0,
+    ready: false,
+  });
+
+  const navItems = useMemo(() => ITEMS, []);
 
   const setRef = (id) => (el) => {
     if (!el) linkRefs.current.delete(id);
@@ -50,9 +47,12 @@ const NavBar = () => {
   const measure = () => {
     const el = linkRefs.current.get(activeId);
     const track = trackRef.current;
+
     if (!el || !track) return;
+
     const parentRect = track.getBoundingClientRect();
     const rect = el.getBoundingClientRect();
+
     setIndicator({
       left: rect.left - parentRect.left,
       width: rect.width,
@@ -62,14 +62,16 @@ const NavBar = () => {
 
   useLayoutEffect(() => {
     measure();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   useEffect(() => {
-    const onResize = () => measure();
+    const onResize = () => {
+      measure();
+      if (window.innerWidth >= 768) setMobileOpen(false);
+    };
+
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   useEffect(() => {
@@ -77,73 +79,113 @@ const NavBar = () => {
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
 
+  /* active section detection */
+  useEffect(() => {
+    const handleScroll = () => {
+      const headerHeight = headerRef.current?.offsetHeight ?? 0;
+      const offset = headerHeight + 20;
+
+      let currentId = ITEMS[0].id;
+
+      for (const item of ITEMS) {
+        const section = document.getElementById(item.id);
+        if (!section) continue;
+
+        const sectionTop = section.offsetTop;
+
+        if (window.scrollY + offset >= sectionTop) {
+          currentId = item.id;
+        }
+      }
+
+      setActiveId(currentId);
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
+  const scrollToSection = (id) => {
+    const target = document.getElementById(id);
+
+    if (!target) return;
+
+    const headerHeight = headerRef.current?.offsetHeight ?? 0;
+
+    const top =
+      target.getBoundingClientRect().top +
+      window.pageYOffset -
+      headerHeight -
+      12;
+
+    window.scrollTo({
+      top,
+      behavior: "smooth",
+    });
+  };
+
   const onItemClick = (id) => (e) => {
     e.preventDefault();
     setActiveId(id);
 
-    const target = document.getElementById(id);
-    if (target) {
-      target.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
+    if (mobileOpen) {
+      setMobileOpen(false);
+      setTimeout(() => scrollToSection(id), 200);
     } else {
-      window.history.replaceState(null, "", `#${id}`);
+      scrollToSection(id);
     }
   };
 
-  const navItems = useMemo(() => ITEMS, []);
-
   return (
-    <header className="sticky top-0 z-50">
-      {/* subtle top glow */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-linear-to-b from-white/70 to-transparent dark:from-slate-950/80" />
+    <header ref={headerRef} className="sticky top-0 z-50">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/70 to-transparent dark:from-slate-950/80" />
 
-      <div className="mx-auto flex max-w-6xl items-center justify-center px-4 py-4">
-        <nav className="relative flex items-center gap-3 rounded-full border border-black/10 bg-white/60 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.10)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/40 dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
-          {/* animated active pill underline */}
+      <div className="mx-auto flex justify-center px-4 py-4">
+        <nav className="relative inline-flex max-w-full items-center rounded-full border border-black/10 bg-white/70 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.10)] backdrop-blur-md dark:border-white/10 dark:bg-slate-950/55 dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+
+          {/* mobile menu button */}
+          <button
+            onClick={() => setMobileOpen((v) => !v)}
+            className="mr-2 flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-black/5 text-slate-700 md:hidden dark:border-white/10 dark:bg-white/5 dark:text-white"
+          >
+            {mobileOpen ? "✕" : "☰"}
+          </button>
+
+          {/* active pill */}
           <div
-            aria-hidden="true"
-            className={[
-              "pointer-events-none absolute bottom-1.5 left-0 h-9 rounded-full",
-              "bg-black/5 ring-1 ring-black/10 dark:bg-white/8 dark:ring-white/10",
-              prefersReducedMotion ? "" : "transition-[transform,width] duration-300 ease-out",
-              indicator.ready ? "opacity-100" : "opacity-0",
-            ].join(" ")}
+            className="pointer-events-none absolute bottom-1 left-0 h-9 rounded-full bg-black/5 ring-1 ring-black/10 transition-all duration-300 dark:bg-white/10 dark:ring-white/10"
             style={{
               width: indicator.width,
               transform: `translateX(${indicator.left}px)`,
+              opacity: indicator.ready ? 1 : 0,
             }}
           />
 
-          <ul ref={trackRef} className="relative flex items-center gap-1">
+          <ul ref={trackRef} className="relative hidden items-center gap-1 md:flex">
             {navItems.map((item) => {
               const isActive = item.id === activeId;
+
               return (
                 <li key={item.id}>
                   <a
                     ref={setRef(item.id)}
                     href={`#${item.id}`}
                     onClick={onItemClick(item.id)}
-                    className={[
-                      "group relative inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium",
-                      "text-slate-700 transition-all duration-200",
-                      "hover:text-slate-950 hover:bg-black/5 hover:-translate-y-[1px]",
-                      "dark:text-white/80 dark:hover:text-white dark:hover:bg-white/5",
-                      isActive ? "text-slate-950 dark:text-white" : "",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white/60 dark:focus-visible:ring-offset-slate-950/40",
-                    ].join(" ")}
+                    className={`inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium transition-all
+                    ${
+                      isActive
+                        ? "text-slate-950 dark:text-white"
+                        : "text-slate-600 hover:bg-black/5 hover:text-slate-950 dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white"
+                    }`}
                   >
-                    <span className="relative">
-                      {item.label}
-                      {/* hover underline */}
-                      <span
-                        aria-hidden="true"
-                        className={[
-                          "pointer-events-none absolute -bottom-1 left-0 h-[2px] w-full origin-left scale-x-0",
-                          "bg-linear-to-r from-violet-400/0 via-violet-400/80 to-fuchsia-400/0",
-                          prefersReducedMotion ? "" : "transition-transform duration-300",
-                          "group-hover:scale-x-100",
-                        ].join(" ")}
-                      />
-                    </span>
+                    {item.label}
                   </a>
                 </li>
               );
@@ -152,30 +194,31 @@ const NavBar = () => {
 
           {/* theme toggle */}
           <button
-            type="button"
             onClick={() => setDark((v) => !v)}
-            className={[
-              "ml-2 inline-flex h-9 w-9 items-center justify-center rounded-full",
-              "border border-black/10 bg-black/5 text-slate-700 hover:bg-black/8 hover:text-slate-950",
-              "dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white/60 dark:focus-visible:ring-offset-slate-950/40",
-              prefersReducedMotion ? "" : "transition-all duration-200",
-            ].join(" ")}
-            aria-label="Toggle theme"
-            title="Toggle theme"
+            className="ml-2 flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-black/5 text-slate-700 hover:bg-black/10 dark:border-white/10 dark:bg-white/5 dark:text-white"
           >
-            <span
-              className={[
-                "inline-block",
-                prefersReducedMotion ? "" : "transition-transform duration-300",
-                dark ? "rotate-0" : "-rotate-90",
-              ].join(" ")}
-            >
-              {dark ? "☾" : "☀"}
-            </span>
+            {dark ? "☾" : "☀"}
           </button>
         </nav>
       </div>
+
+      {/* mobile menu */}
+      {mobileOpen && (
+        <div className="mx-auto mt-2 max-w-sm px-4 md:hidden">
+          <div className="rounded-2xl border border-black/10 bg-white/80 p-2 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/70">
+            {navItems.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                onClick={onItemClick(item.id)}
+                className="flex h-11 items-center rounded-xl px-4 text-sm font-medium text-slate-700 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/5"
+              >
+                {item.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
