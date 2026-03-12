@@ -1,7 +1,4 @@
 import { useMemo } from "react";
-import profileImg from "../assets/profile.jpg";
-
-
 const Hero = ({
   name = "Abdelkhalek Mahmoud ",
   role = "Frontend Developer",
@@ -118,7 +115,7 @@ const Hero = ({
         <div className="mt-10 flex w-full justify-center md:mt-0 md:w-1/2 md:justify-end">
           <div className="relative h-40 w-40 overflow-hidden rounded-full border border-white/15 bg-white/5 shadow-[0_18px_60px_rgba(15,23,42,0.7)] sm:h-48 sm:w-48 md:h-56 md:w-56">
             <img
-              src={profileImg}
+              src="/profile.jpg"
               alt="Abdelkhalek portrait"
               className="h-full w-full object-cover"
             />
