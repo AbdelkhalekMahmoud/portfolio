@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import profileImg from "../assets/profile.jpg";
 
+
 const Hero = ({
   name = "Abdelkhalek Mahmoud ",
   role = "Frontend Developer",
